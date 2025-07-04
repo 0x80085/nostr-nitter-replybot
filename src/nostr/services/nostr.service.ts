@@ -37,13 +37,6 @@ export class NostrService implements OnModuleInit {
 
   constructor(private configService: ConfigService) {}
 
-  /**
-   * IDEA
-   * Also add ThreadReaderapp support
-   * if threadreader reruns 200 the thread exists, if not it it returns 301 or 302
-   * or some other threadreader like app idk
-   */
-
   onModuleInit() {
     this.isDebugMode =
       this.configService.getOrThrow<string>('IS_DEBUG_MODE') === 'true';
@@ -155,10 +148,10 @@ export class NostrService implements OnModuleInit {
       );
 
       // Create reply message
-      const xcancelList = `\n🔗 XCancel:\n\t${xcancelUrls.join('\n\t')}`;
-      const poastList = `\n🔗 Poast:\n\t${poastNitterUrls.join('\n\t')}`;
-      const nitterNetList = `\n🔗 Nitter.net:\n\t${nitterNetUrls.join('\n\t')}`;
-      const replyMessage = `Nitter Mirror link(s):${xcancelList}${poastList}${nitterNetList}`;
+      const xcancelList = `🔗 XCancel:\n${xcancelUrls.join('\n')}\n`;
+      const poastList = `🔗 Poast:\n${poastNitterUrls.join('\n')}\n`;
+      const nitterNetList = `🔗 Nitter:\n${nitterNetUrls.join('\n')}\n`;
+      const replyMessage = `Nitter Mirror link(s)\n\n${xcancelList}${poastList}${nitterNetList}`;
 
       // Post reply
       this.logger.log(`Transformation & cleaning completed`);
