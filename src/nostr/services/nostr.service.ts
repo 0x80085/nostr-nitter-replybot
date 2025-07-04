@@ -73,7 +73,6 @@ export class NostrService implements OnModuleInit {
 
     this.rxReq = createRxForwardReq();
 
-    this.listenForOwnEvents();
     this.listenForAllEventsWithTwitterLink();
 
     this.logger.log('Initialized');
@@ -81,22 +80,6 @@ export class NostrService implements OnModuleInit {
     const relays = this.rxNostr.getAllRelayStatus();
     this.logger.log('Active relays:');
     this.logger.log(JSON.stringify(relays, null, 2));
-  }
-
-  private listenForOwnEvents() {
-    // log incoming packets
-    this.rxNostr.use(this.rxReq).subscribe((packet) => {
-      if (this.isDebugMode === true) {
-        this.logger.log(packet);
-      }
-    });
-
-    // listen for own bot events
-    this.rxReq.emit({
-      //   ids: [], // use if looking for specific event ID
-      since: nowInUnixTime(),
-      authors: [this.publicKey], // Your bot's hex pubkey
-    });
   }
 
   private listenForAllEventsWithTwitterLink() {
