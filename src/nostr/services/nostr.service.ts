@@ -7,16 +7,14 @@ import {
   createRxNostr,
   EventPacket,
   LazyFilter,
+  now,
   RxNostr,
   RxReq,
   RxReqPipeable,
 } from 'rx-nostr';
 import WebSocket from 'ws';
-import {
-  cleanAndTransformUrl,
-  nowInUnixTime,
-  twitterStatusRegex,
-} from './util';
+import { cleanAndTransformUrl, twitterStatusRegex } from './util';
+import { catchError, delay, filter, of, take, tap } from 'rxjs';
 
 @Injectable()
 export class NostrService implements OnModuleInit {
@@ -31,6 +29,7 @@ export class NostrService implements OnModuleInit {
   private CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes TTL
 
   private logger = new Logger(NostrService.name);
+
   rxReq: RxReq<'forward'> & {
     emit(filters: LazyFilter | LazyFilter[]): void;
   } & RxReqPipeable;
@@ -39,7 +38,8 @@ export class NostrService implements OnModuleInit {
 
   onModuleInit() {
     this.isDebugMode =
-      this.configService.getOrThrow<string>('IS_DEBUG_MODE') === 'true';
+      this.configService.get<string>('IS_DEBUG_MODE') === 'true';
+
     this.secretKey = this.configService.getOrThrow<string>(
       'NOSTR_BOT_PRIVATE_KEY',
     );
@@ -73,6 +73,55 @@ export class NostrService implements OnModuleInit {
 
     this.rxReq = createRxForwardReq();
 
+    // Reconnection handling
+    this.rxNostr
+      .createConnectionStateObservable()
+      .pipe(
+        tap(({ from, state }) => {
+          this.logger.debug(
+            'Relay connection state changed:',
+            `from: ${from} `,
+            `>> to ${state}`,
+          );
+          switch (state) {
+            case 'error':
+            case 'rejected':
+            case 'terminated': {
+              this.logger.error(
+                `[connection] ${new Date().toISOString()} from: ${from || 'unknown'} state: ${state || 'unknown'}`,
+              );
+              break;
+            }
+            case 'waiting-for-retrying':
+            case 'retrying':
+            case 'dormant': {
+              this.logger.warn(
+                `[connection] ${new Date().toISOString()} from: ${from || 'unknown'} state: ${state || 'unknown'}`,
+              );
+              break;
+            }
+            case 'initialized':
+            case 'connecting':
+            case 'connected':
+            default: {
+              this.logger.debug(
+                `[connection] ${new Date().toISOString()} from: ${from || 'unknown'} state: ${state || 'unknown'}`,
+              );
+              break;
+            }
+          }
+        }),
+        // only emit error state
+        filter((packet) => packet.state === 'error'),
+        // Wait one minute before reconnect.
+        delay(60 * 1000),
+      )
+      .subscribe((packet) => {
+        // Reconnect to the relay on error after delay
+        this.logger.debug('Reconnecting to relay:', packet.from);
+        this.rxNostr.reconnect(packet.from);
+      });
+
     this.listenForAllEventsWithTwitterLink();
 
     this.logger.log('Initialized');
@@ -96,14 +145,14 @@ export class NostrService implements OnModuleInit {
           this.cacheRepliedToEvent(packet.event.id);
         }
       } catch (error) {
-        this.logger.warn(`Failed to reply/transform.`);
+        this.logger.warn(`Failed to reply/transform. See info below:`);
         this.logger.error(error);
       }
     });
 
     // listen for events
     this.rxReq.emit({
-      since: nowInUnixTime(),
+      since: now,
       authors: [], // Empty array means listen to all authors
       kinds: [1], // Only listen to kind 1 (text notes)
     });
@@ -161,8 +210,6 @@ export class NostrService implements OnModuleInit {
   }
 
   private replyToEvent(originalEvent: NostrEvent, message: string): void {
-    const nowInUnixTime = Math.floor(Date.now() / 1000);
-
     const tags = [
       ['e', originalEvent.id, '', 'reply'], // The event you're replying to
       ['p', originalEvent.pubkey], // The author you're replying to
@@ -170,12 +217,23 @@ export class NostrService implements OnModuleInit {
     ];
 
     try {
-      this.rxNostr.send({
-        kind: 1, // Text note
-        content: message,
-        created_at: nowInUnixTime,
-        tags: tags,
-      });
+      this.rxNostr
+        .send({
+          kind: 1, // Text note
+          content: message,
+          created_at: now(),
+          tags: tags,
+        })
+        .pipe(
+          take(1),
+          tap(),
+          catchError((e) => {
+            this.logger.warn(`Couldn't post reply`);
+            this.logger.warn(e);
+            return of(null);
+          }),
+        )
+        .subscribe();
 
       if (this.isDebugMode) {
         this.logger.log(`Posted reply to event ${originalEvent.id}`);
@@ -187,12 +245,10 @@ export class NostrService implements OnModuleInit {
   }
 
   post(message: string) {
-    const nowInUnixTime = Math.floor(Date.now() / 1000);
-
     return this.rxNostr.send({
       kind: 1,
       content: message,
-      created_at: nowInUnixTime, // Recommended to set manually
+      created_at: now(), // Recommended to set manually
       tags: [
         ['p', this.publicKey], // Self-reference
         ['client', 'Nostr Test Bot'],
@@ -201,7 +257,6 @@ export class NostrService implements OnModuleInit {
   }
 
   verifyNIP05(name: string, about?: string, profileImgUrl?: string) {
-    const nowInUnixTime = Math.floor(Date.now() / 1000);
     const metadata = {
       name,
       nip05: this.nip05Email,
@@ -217,7 +272,7 @@ export class NostrService implements OnModuleInit {
     return this.rxNostr.send({
       kind: 0,
       content: JSON.stringify(metadata),
-      created_at: nowInUnixTime, // Recommended to set manually
+      created_at: now(), // Recommended to set manually
       tags: [],
     });
   }
