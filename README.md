@@ -33,6 +33,9 @@ NOSTR_BOT_PUBLIC_KEY="<HEX PUBLIC KEY HERE>"
 
 AUTH_APP_TOKEN="APP TOKEN TO PROTECT YOUR ENDPOINTS FROM ABUSE"
 
+# Debug mode prints replies to log instead of publishing to Nostr
+IS_DEBUG_MODE=true
+
 # Optional for NIP05 verification
 NIP05_VERIFICATION_DOMAIN_URL="https://synk.moe/.well-known/nostr.json"
 NIP05_VERIFICATION_DOMAIN_EMAIL="bot@synk.moe"
