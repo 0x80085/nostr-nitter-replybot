@@ -16,6 +16,9 @@ import WebSocket from 'ws';
 import { cleanAndTransformUrl, twitterStatusRegex } from './util';
 import { catchError, delay, filter, of, take, tap } from 'rxjs';
 
+type NostrEventId = string;
+type Timestamp = number;
+
 @Injectable()
 export class NostrService implements OnModuleInit {
   private secretKey: string;
@@ -25,8 +28,10 @@ export class NostrService implements OnModuleInit {
   private nip05Email: string;
   private isDebugMode: boolean;
 
-  private repliedEventsCache: Map<string, number> = new Map(); // eventId -> timestamp
-  private CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes TTL
+  private nostrRelays: string[];
+  private repliedEventsCache: Map<NostrEventId, Timestamp> = new Map();
+  private CACHE_TTL_MS: number;
+  private RECONNECTION_DELAY_MS: number;
 
   private logger = new Logger(NostrService.name);
 
@@ -52,6 +57,21 @@ export class NostrService implements OnModuleInit {
     this.nip05Email = this.configService.getOrThrow<string>(
       'NIP05_VERIFICATION_DOMAIN_EMAIL',
     );
+    this.nostrRelays = this.configService
+      .get<string>('NOSTR_RELAYS', '')
+      .split(',')
+      .map((r) => r.trim())
+      .filter((r) => r.length > 0);
+
+    // Configuration values with defaults
+    this.CACHE_TTL_MS =
+      parseInt(this.configService.get<string>('CACHE_TTL_MINUTES', '30')) *
+      60 *
+      1000;
+    this.RECONNECTION_DELAY_MS =
+      parseInt(
+        this.configService.get<string>('RECONNECTION_DELAY_SECONDS', '60'),
+      ) * 1000;
 
     this.initializeNostr();
 
@@ -65,11 +85,23 @@ export class NostrService implements OnModuleInit {
       websocketCtor: WebSocket as unknown as { new (url: string): WebSocket },
     });
 
-    this.rxNostr.setDefaultRelays([
+    const defaultRelays = [
       'wss://relay.damus.io',
       'wss://nostr.mom',
       'wss://relay.nostr.band',
-    ]);
+    ];
+    const hasCustomRelays = this.nostrRelays.length > 0;
+    this.logger.log(
+      `Using Nostr relays: ${
+        hasCustomRelays
+          ? this.nostrRelays.join(', ')
+          : `${defaultRelays.join(', ')} (default)`
+      }`,
+    );
+
+    this.rxNostr.setDefaultRelays(
+      hasCustomRelays ? this.nostrRelays : defaultRelays,
+    );
 
     this.rxReq = createRxForwardReq();
 
@@ -113,8 +145,8 @@ export class NostrService implements OnModuleInit {
         }),
         // only emit error state
         filter((packet) => packet.state === 'error'),
-        // Wait one minute before reconnect.
-        delay(60 * 1000),
+        // Wait configured time before reconnect.
+        delay(this.RECONNECTION_DELAY_MS),
       )
       .subscribe((packet) => {
         // Reconnect to the relay on error after delay

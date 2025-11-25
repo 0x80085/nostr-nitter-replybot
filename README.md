@@ -14,7 +14,6 @@ This bot scans Nostr for posts containing x.com/twitter.com links and automatica
 - Nitter is a lightweight, open-source alternative that strips out junk
 - Avoid feeding Elon’s engagement machine while still sharing/viewing it's content
 
-
 ## Project setup
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript bot.
@@ -28,6 +27,10 @@ Run `npm run keygen` to generate a public/private key pair - AKA your Nostr acco
 Put those in your `.env` file
 
 ```txt
+
+# Not used yet
+DATABASE_URL="file:./dev.db"
+
 NOSTR_BOT_PRIVATE_KEY="<HEX PRIVATE KEY HERE>"
 NOSTR_BOT_PUBLIC_KEY="<HEX PUBLIC KEY HERE>"
 
@@ -39,9 +42,27 @@ IS_DEBUG_MODE=true
 # Optional for NIP05 verification
 NIP05_VERIFICATION_DOMAIN_URL="https://synk.moe/.well-known/nostr.json"
 NIP05_VERIFICATION_DOMAIN_EMAIL="bot@synk.moe"
+
+# Nostr note cache cleanup cycle in minutes
+CACHE_TTL_MINUTES=30
+
+# Nostr relay reconnection delay settings
+RECONNECTION_DELAY_SECONDS=60
+
+# Comma-separated list of Nostr relays to connect to
+NOSTR_RELAYS="wss://relay.damus.io,wss://nostr.mom,wss://relay.nostr.band"
+
+# Server port
+PORT=3000
+
+# Log file retention settings
+LOG_RETENTION_DAYS="30d"
+LOG_DIRECTORY="logs"
+
+
 ```
 
-Run  `npm start` to start the bot
+Run `npm start` to start the bot
 
 ## Compile and run the project
 
@@ -69,6 +90,7 @@ Check out a few resources that may come in handy when working with this project:
 - Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
 - rx-nostr which powers this project. [View on Github](https://github.com/penpenpng/rx-nostr)
 - [Nostr NIPs](https://github.com/nostr-protocol/nips)
+
 ## License
 
 This Nostr bot is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).

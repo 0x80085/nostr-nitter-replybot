@@ -8,6 +8,7 @@
   "scripts": {
     "start": "nest start",
     "keygen": "tsx keygen.ts",
+    "transform": "tsx key-transform.ts",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start:dev": "nest start --watch",
