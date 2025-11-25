@@ -3,17 +3,21 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from '@nestjs/common';
 import { utilities, WinstonModule } from 'nest-winston';
+import { nip19 } from 'nostr-tools';
 import * as winston from 'winston';
 import 'winston-daily-rotate-file';
 
 async function bootstrap() {
+  const logRetentionDays = process.env.LOG_RETENTION_DAYS || '30d';
+  const logDirectory = process.env.LOG_DIRECTORY || 'logs';
+
   const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger({
       transports: [
         // file on daily rotation (error only)
         new winston.transports.DailyRotateFile({
           // %DATE will be replaced by the current date
-          filename: `logs/%DATE%-error.log`,
+          filename: `${logDirectory}/%DATE%-error.log`,
           level: 'error',
           format: winston.format.combine(
             winston.format.simple(),
@@ -24,11 +28,11 @@ async function bootstrap() {
           ),
           datePattern: 'YYYY-MM-DD',
           zippedArchive: false, // don't want to zip our logs
-          maxFiles: '30d', // will keep log until they are older than 30 days
+          maxFiles: logRetentionDays,
         }),
         // same for all levels
         new winston.transports.DailyRotateFile({
-          filename: `logs/%DATE%.log`,
+          filename: `${logDirectory}/%DATE%.log`,
           format: winston.format.combine(
             winston.format.simple(),
             winston.format.timestamp(),
@@ -38,7 +42,7 @@ async function bootstrap() {
           ),
           datePattern: 'YYYY-MM-DD',
           zippedArchive: false,
-          maxFiles: '30d',
+          maxFiles: logRetentionDays,
         }),
         new winston.transports.Console({
           format: winston.format.combine(
@@ -77,11 +81,25 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('swagger', app, document);
 
-  const port = 3000;
+  const port = process.env.PORT || 3000;
+  const npub = nip19.npubEncode(process.env.NOSTR_BOT_PUBLIC_KEY!);
 
-  logger.log(`Starting on port ${port}`);
+  const serverSettings = `
+### Server settings ###
+    Starting on port ${port}
+    Nostr public key: ${process.env.NOSTR_BOT_PUBLIC_KEY}
+    Link to Nostr public key: https://njump.me/${npub}
+    Debug mode: ${process.env.IS_DEBUG_MODE === 'true'}
+    domain for NIP-05 verification: ${process.env.NIP05_VERIFICATION_DOMAIN_URL}
+    email for NIP-05 verification: ${process.env.NIP05_VERIFICATION_DOMAIN_EMAIL}
+    Cache TTL (minutes): ${process.env.CACHE_TTL_MINUTES}
+    Reconnection delay (seconds): ${process.env.RECONNECTION_DELAY_SECONDS}
+    Log retention days: ${logRetentionDays}
+    Log directory: ${logDirectory}
+#########`;
+  logger.log(serverSettings);
 
   await app.listen(port);
 }
 
-bootstrap();
+void bootstrap();
