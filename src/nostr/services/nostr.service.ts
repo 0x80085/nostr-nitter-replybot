@@ -12,12 +12,16 @@ import {
   RxReq,
   RxReqPipeable,
 } from 'rx-nostr';
-import WebSocket from 'ws';
-import { cleanAndTransformUrl, twitterStatusRegex } from './util';
 import { catchError, delay, filter, of, take, tap } from 'rxjs';
-
-type NostrEventId = string;
-type Timestamp = number;
+import WebSocket from 'ws';
+import {
+  buildReplyMessage,
+  countReplacedLinks,
+  parseRedditUrls,
+  parseTwitterUrls,
+} from './util';
+import { Cache } from './cache';
+import { logConnectionState } from './connection.util';
 
 @Injectable()
 export class NostrService implements OnModuleInit {
@@ -29,11 +33,21 @@ export class NostrService implements OnModuleInit {
   private isDebugMode: boolean;
 
   private nostrRelays: string[];
-  private repliedEventsCache: Map<NostrEventId, Timestamp> = new Map();
-  private CACHE_TTL_MS: number;
   private RECONNECTION_DELAY_MS: number;
 
   private logger = new Logger(NostrService.name);
+  private cache: Cache;
+
+  private readonly redditAlts = {
+    troddit: 'https://www.troddit.com',
+    'redlib.privacyredirect (FIN)': 'https://redlib.privacyredirect.com',
+    'redlib.catsarch (US)': 'https://redlib.catsarch.com',
+  };
+  private readonly twitterAlts = {
+    XCancel: 'https://xcancel.com',
+    Poast: 'https://nitter.poast.org',
+    Nitter: 'https://nitter.net',
+  };
 
   rxReq: RxReq<'forward'> & {
     emit(filters: LazyFilter | LazyFilter[]): void;
@@ -64,7 +78,7 @@ export class NostrService implements OnModuleInit {
       .filter((r) => r.length > 0);
 
     // Configuration values with defaults
-    this.CACHE_TTL_MS =
+    const cacheTtl =
       parseInt(this.configService.get<string>('CACHE_TTL_MINUTES', '30')) *
       60 *
       1000;
@@ -73,9 +87,9 @@ export class NostrService implements OnModuleInit {
         this.configService.get<string>('RECONNECTION_DELAY_SECONDS', '60'),
       ) * 1000;
 
-    this.initializeNostr();
+    this.cache = new Cache(cacheTtl);
 
-    setInterval(() => this.cleanupCache(), this.CACHE_TTL_MS);
+    this.initializeNostr();
   }
 
   initializeNostr() {
@@ -109,40 +123,7 @@ export class NostrService implements OnModuleInit {
     this.rxNostr
       .createConnectionStateObservable()
       .pipe(
-        tap(({ from, state }) => {
-          this.logger.debug(
-            'Relay connection state changed:',
-            `from: ${from} `,
-            `>> to ${state}`,
-          );
-          switch (state) {
-            case 'error':
-            case 'rejected':
-            case 'terminated': {
-              this.logger.error(
-                `[connection] ${new Date().toISOString()} from: ${from || 'unknown'} state: ${state || 'unknown'}`,
-              );
-              break;
-            }
-            case 'waiting-for-retrying':
-            case 'retrying':
-            case 'dormant': {
-              this.logger.warn(
-                `[connection] ${new Date().toISOString()} from: ${from || 'unknown'} state: ${state || 'unknown'}`,
-              );
-              break;
-            }
-            case 'initialized':
-            case 'connecting':
-            case 'connected':
-            default: {
-              this.logger.debug(
-                `[connection] ${new Date().toISOString()} from: ${from || 'unknown'} state: ${state || 'unknown'}`,
-              );
-              break;
-            }
-          }
-        }),
+        logConnectionState(this.logger),
         // only emit error state
         filter((packet) => packet.state === 'error'),
         // Wait configured time before reconnect.
@@ -154,7 +135,7 @@ export class NostrService implements OnModuleInit {
         this.rxNostr.reconnect(packet.from);
       });
 
-    this.listenForAllEventsWithTwitterLink();
+    this.listenForAllEventsWithReplacableLinks();
 
     this.logger.log('Initialized');
 
@@ -163,18 +144,38 @@ export class NostrService implements OnModuleInit {
     this.logger.log(JSON.stringify(relays, null, 2));
   }
 
-  private listenForAllEventsWithTwitterLink() {
-    // log incoming packets with Twitter/X links
+  private listenForAllEventsWithReplacableLinks() {
     this.rxNostr.use(this.rxReq).subscribe((packet) => {
       try {
         if (packet.event.kind === 1) {
-          const wasAlreadyRepliedTo = this.hasBeenRepliedTo(packet.event.id);
+          const wasAlreadyRepliedTo = this.cache.hasBeenRepliedTo(
+            packet.event.id,
+          );
           if (wasAlreadyRepliedTo) {
             return;
           }
 
-          this.parseTwitterUrls(packet);
-          this.cacheRepliedToEvent(packet.event.id);
+          const twitterUrlMappings = parseTwitterUrls(
+            packet.event.content,
+            this.twitterAlts,
+          );
+
+          const redditUrlMappings = parseRedditUrls(
+            packet.event.content,
+            this.redditAlts,
+          );
+
+          const hasReplacedLinks =
+            Object.keys(twitterUrlMappings).length > 0 ||
+            Object.keys(redditUrlMappings).length > 0;
+
+          if (hasReplacedLinks) {
+            this.handleReplacedUrlsFound(
+              packet,
+              twitterUrlMappings,
+              redditUrlMappings,
+            );
+          }
         }
       } catch (error) {
         this.logger.warn(`Failed to reply/transform. See info below:`);
@@ -190,54 +191,46 @@ export class NostrService implements OnModuleInit {
     });
   }
 
-  private parseTwitterUrls(packet: EventPacket) {
-    const content = packet.event.content;
-    const matches = [...content.matchAll(twitterStatusRegex)];
+  private handleReplacedUrlsFound(
+    packet: EventPacket,
+    twitterUrlMappings: Record<string, string[]>,
+    redditUrlMappings: Record<string, string[]>,
+  ): void {
+    this.logger.log(
+      `Found ${countReplacedLinks(twitterUrlMappings, redditUrlMappings)} Twitter/X or Reddit links in event ${packet.event.id}\nCreating reply...`,
+    );
 
-    if (matches.length > 0) {
-      // Generate clean xcancel URLs
+    const replyMessage = buildReplyMessage(
+      twitterUrlMappings,
+      redditUrlMappings,
+    );
+
+    this.logger.log(`Transformation & cleaning completed`);
+    this.logger.log(`Original post:`);
+    this.logger.log(`Author: ${packet.event.pubkey}`);
+    this.logger.log(`Original Note Content:
+--start--
+${packet.event.content}
+--end--
+`);
+
+    this.logger.log('Reply message content:');
+    this.logger.log(`
+--start--
+${replyMessage}
+--end--
+        `);
+
+    if (this.isDebugMode) {
       this.logger.log(
-        `Found ${matches.length} Twitter/X links in event ${packet.event.id}\nInitiating cleaning, transforming and replying...`,
+        '🪲 DEBUG MODE ON - ONLY LOGGED REPLY INSTEAD OF PUBLISHING',
       );
-
-      const xcancelUrls = matches.map((match) =>
-        cleanAndTransformUrl(match[0], 'https://xcancel.com'),
-      );
-
-      const poastNitterUrls = matches.map((match) =>
-        cleanAndTransformUrl(match[0], 'https://nitter.poast.org'),
-      );
-      const nitterNetUrls = matches.map((match) =>
-        cleanAndTransformUrl(match[0], 'https://nitter.net'),
-      );
-
-      // Create reply message
-      const xcancelList = `🔗 XCancel:\n${xcancelUrls.join('\n')}\n`;
-      const poastList = `🔗 Poast:\n${poastNitterUrls.join('\n')}\n`;
-      const nitterNetList = `🔗 Nitter:\n${nitterNetUrls.join('\n')}\n`;
-      const replyMessage = `Nitter Mirror link(s)\n\n${xcancelList}${poastList}${nitterNetList}`;
-
-      // Post reply
-      this.logger.log(`Transformation & cleaning completed`);
-      this.logger.log(`Original post:`);
-      this.logger.log(`---`);
-      this.logger.log(`Author: ${packet.event.pubkey}`);
-      this.logger.log(`Content: ${content}`);
-      this.logger.log(`---`);
-      this.logger.log(`Posting reply with xcancel links: ${replyMessage}`);
-
-      if (this.isDebugMode) {
-        this.logger.log(
-          '🪲 DEBUG MODE ON - ONLY LOGS INSTEAD OF PUBLISHING REPLY',
-        );
-        this.logger.log('--start--');
-        this.logger.log(replyMessage);
-        this.logger.log('--end--');
-      } else {
-        this.logger.log('🚨 DEBUG MODE OFF 🚨 - PUBLISHING REPLY TO NOSTR');
-        this.replyToEvent(packet.event, replyMessage);
-        this.logger.log('OK Published reply');
-      }
+      // Cache event in debug mode since we're not actually posting
+      this.cache.cacheRepliedToEvent(packet.event.id);
+    } else {
+      this.logger.log('🚨 DEBUG MODE OFF 🚨 - PUBLISHING REPLY TO NOSTR');
+      this.replyToEvent(packet.event, replyMessage);
+      this.logger.log('OK Published reply');
     }
   }
 
@@ -258,7 +251,14 @@ export class NostrService implements OnModuleInit {
         })
         .pipe(
           take(1),
-          tap(),
+          tap(() => {
+            // Cache event only after successful reply
+            this.cache.cacheRepliedToEvent(originalEvent.id);
+            if (!this.isDebugMode) {
+              this.logger.log(`Posted reply to event ${originalEvent.id}`);
+              this.logger.debug(`Reply content: ${message}`);
+            }
+          }),
           catchError((e) => {
             this.logger.warn(`Couldn't post reply`);
             this.logger.warn(e);
@@ -266,11 +266,6 @@ export class NostrService implements OnModuleInit {
           }),
         )
         .subscribe();
-
-      if (this.isDebugMode) {
-        this.logger.log(`Posted reply to event ${originalEvent.id}`);
-        this.logger.debug(`Reply content: ${message}`);
-      }
     } catch (error) {
       this.logger.error('Failed to post reply:', error);
     }
@@ -311,31 +306,5 @@ export class NostrService implements OnModuleInit {
 
   getRelaysStatus() {
     return JSON.stringify(this.rxNostr.getAllRelayStatus());
-  }
-
-  private cacheRepliedToEvent(eventId: string): void {
-    this.repliedEventsCache.set(eventId, Date.now());
-  }
-
-  private hasBeenRepliedTo(eventId: string): boolean {
-    return this.repliedEventsCache.has(eventId);
-  }
-
-  private cleanupCache(): void {
-    this.logger.log(`Cleaning up event cache...`);
-    const now = Date.now();
-    const threshold = now - this.CACHE_TTL_MS;
-    let removedEventCount = 0;
-
-    // Remove all entries older than the TTL
-    this.repliedEventsCache.forEach((timestamp, eventId) => {
-      if (timestamp < threshold) {
-        removedEventCount++;
-        this.repliedEventsCache.delete(eventId);
-      }
-    });
-    this.logger.log(
-      `OK cleaned [${removedEventCount}] events, [${this.repliedEventsCache.size} left in cache]`,
-    );
   }
 }

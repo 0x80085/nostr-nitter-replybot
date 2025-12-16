@@ -60,9 +60,9 @@ async function bootstrap() {
   const logger = new Logger('Main');
 
   const config = new DocumentBuilder()
-    .setTitle('Nostr Replybot Twitter <> Nitter Link Swapper')
+    .setTitle('Nostr Social Media Link Replacer Bot')
     .setDescription(
-      'Scans Nostr for posts w Twitter links and posts the Nitter link in replies',
+      'Scans Nostr for posts with Twitter/X and Reddit links and replies with privacy-respecting alternative front-end links',
     )
     .setVersion('1.0')
     .addBearerAuth(
