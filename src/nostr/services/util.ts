@@ -1,5 +1,6 @@
 export const twitterStatusRegex =
-  /https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/(\w+)\/status(?:es)?\/(\d+)(?:[^\s?]+)?/gi;
+  // eslint-disable-next-line no-useless-escape
+  /https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/(\w+)\/status(?:es)?\/(\d+)(?:[\/\w\-._~:?#[\]@!$&'()*+,;=]*)?/gi;
 
 export function cleanAndReplaceTwitterUrl(
   twitterUrl: string,
