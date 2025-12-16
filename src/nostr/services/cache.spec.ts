@@ -95,34 +95,52 @@ describe('Cache', () => {
   });
 
   describe('cache expiration', () => {
-    it(
-      'should remove expired events after TTL',
-      (done) => {
-        const eventId = 'expiring-event';
+    let mockDate: jest.SpyInstance;
+    let testCache: Cache;
 
-        cache.cacheRepliedToEvent(eventId);
-        expect(cache.hasBeenRepliedTo(eventId)).toBe(true);
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockDate = jest.spyOn(Date, 'now');
+      mockDate.mockReturnValue(1000); // Start at a fixed timestamp
+      testCache = new Cache(ttlMs); // Create cache with mocked time
+    });
 
-        // Wait for TTL + cleanup interval to ensure cleanup runs
-        setTimeout(() => {
-          expect(cache.hasBeenRepliedTo(eventId)).toBe(false);
-          done();
-        }, ttlMs * 2); // Wait for 2x TTL to be sure cleanup occurred
-      },
-      ttlMs * 3,
-    ); // Set test timeout to 3x TTL
+    afterEach(() => {
+      if (testCache) {
+        testCache.destroy();
+      }
+      jest.useRealTimers();
+      mockDate.mockRestore();
+    });
 
-    it('should keep events that are not expired', (done) => {
+    it('should remove expired events after TTL', () => {
+      const eventId = 'expiring-event';
+
+      testCache.cacheRepliedToEvent(eventId);
+      expect(testCache.hasBeenRepliedTo(eventId)).toBe(true);
+
+      // Advance Date.now() past TTL
+      mockDate.mockReturnValue(1000 + ttlMs + 1);
+
+      // Advance timers to trigger cleanup interval
+      jest.advanceTimersByTime(ttlMs);
+
+      expect(testCache.hasBeenRepliedTo(eventId)).toBe(false);
+    });
+
+    it('should keep events that are not expired', () => {
       const eventId = 'valid-event';
 
-      cache.cacheRepliedToEvent(eventId);
-      expect(cache.hasBeenRepliedTo(eventId)).toBe(true);
+      testCache.cacheRepliedToEvent(eventId);
+      expect(testCache.hasBeenRepliedTo(eventId)).toBe(true);
 
-      // Wait less than TTL to verify event is still cached
-      setTimeout(() => {
-        expect(cache.hasBeenRepliedTo(eventId)).toBe(true);
-        done();
-      }, ttlMs / 2); // Wait for half the TTL
+      // Advance Date.now() but not past TTL
+      mockDate.mockReturnValue(1000 + ttlMs / 2);
+
+      // Trigger cleanup interval
+      jest.advanceTimersByTime(ttlMs);
+
+      expect(testCache.hasBeenRepliedTo(eventId)).toBe(true);
     });
   });
 
@@ -164,33 +182,35 @@ describe('Cache', () => {
   });
 
   describe('memory management', () => {
-    it(
-      'should prevent unbounded cache growth through TTL cleanup',
-      (done) => {
-        const eventIds = Array.from({ length: 10 }, (_, i) => `event-${i}`);
+    it('should prevent unbounded cache growth through TTL cleanup', () => {
+      jest.useFakeTimers();
+      const mockDate = jest.spyOn(Date, 'now');
+      mockDate.mockReturnValue(2000); // Different base time
 
-        // Cache events
-        eventIds.forEach((id) => cache.cacheRepliedToEvent(id));
+      const testCache = new Cache(ttlMs);
+      const eventIds = Array.from({ length: 10 }, (_, i) => `event-${i}`);
 
-        // Verify all are cached
-        eventIds.forEach((id) => {
-          expect(cache.hasBeenRepliedTo(id)).toBe(true);
-        });
+      // Cache events
+      eventIds.forEach((id) => testCache.cacheRepliedToEvent(id));
 
-        // Wait for cleanup to occur (cleanup interval = TTL, plus time for entries to expire)
-        setTimeout(
-          () => {
-            // Check if cleanup occurred - some or all events should be removed
-            const remainingEvents = eventIds.filter((id) =>
-              cache.hasBeenRepliedTo(id),
-            );
-            expect(remainingEvents.length).toBeLessThan(eventIds.length);
-            done();
-          },
-          ttlMs * 2 + 50,
-        ); // Wait for 2 intervals plus buffer
-      },
-      ttlMs * 3,
-    ); // Increase test timeout
+      // Verify all are cached
+      eventIds.forEach((id) => {
+        expect(testCache.hasBeenRepliedTo(id)).toBe(true);
+      });
+
+      // Advance time past TTL
+      mockDate.mockReturnValue(2000 + ttlMs + 1);
+      jest.advanceTimersByTime(ttlMs);
+
+      // All events should be removed
+      const remainingEvents = eventIds.filter((id) =>
+        testCache.hasBeenRepliedTo(id),
+      );
+      expect(remainingEvents.length).toBe(0);
+
+      testCache.destroy();
+      jest.useRealTimers();
+      mockDate.mockRestore();
+    });
   });
 });
