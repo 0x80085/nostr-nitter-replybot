@@ -7,11 +7,21 @@ export class Cache {
   private CACHE_TTL_MS: number;
   private repliedEventsCache: Map<NostrEventId, Timestamp> = new Map();
   private logger = new Logger(Cache.name);
+  private cleanupInterval: NodeJS.Timeout;
 
   constructor(ttl: number) {
     this.CACHE_TTL_MS = ttl;
 
-    setInterval(() => this.cleanupCache(), this.CACHE_TTL_MS);
+    this.cleanupInterval = setInterval(
+      () => this.cleanupCache(),
+      this.CACHE_TTL_MS,
+    );
+  }
+
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
   }
 
   cacheRepliedToEvent(eventId: string): void {
