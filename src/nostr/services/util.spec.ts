@@ -1,9 +1,10 @@
 import {
-  twitterStatusRegex,
+  buildReplyMessage,
+  buildTwitterSection,
   cleanAndReplaceTwitterUrl,
   parseTwitterUrls,
-  buildTwitterSection,
-  buildReplyMessage,
+  redditThreadRegex,
+  twitterStatusRegex,
 } from './util';
 
 describe('Twitter URL utilities', () => {
@@ -72,6 +73,21 @@ describe('Twitter URL utilities', () => {
         'https://twitter.com/user/status/123456789，', // Chinese comma
         'https://twitter.com/user/status/123456789！', // Japanese exclamation
         'https://twitter.com/user/status/123456789？', // Japanese question mark
+      ];
+
+      testCases.forEach((text) => {
+        twitterStatusRegex.lastIndex = 0; // Reset regex
+        const matches = [...text.matchAll(twitterStatusRegex)];
+        expect(matches).toHaveLength(1);
+        expect(matches[0][0]).toBe('https://twitter.com/user/status/123456789');
+      });
+    });
+
+    it('should NOT include markdown link formatting', () => {
+      const testCases = [
+        '[Link text](https://twitter.com/user/status/123456789)',
+        '([Link text in brackets](https://twitter.com/user/status/123456789))',
+        'Check this out: [Click here](https://twitter.com/user/status/123456789)',
       ];
 
       testCases.forEach((text) => {
@@ -258,6 +274,84 @@ describe('Twitter URL utilities', () => {
     it('should handle empty mappings', () => {
       const result = buildReplyMessage({}, {});
       expect(result).toBe('');
+    });
+  });
+});
+
+describe('Reddit URL utilities', () => {
+  describe('redditThreadRegex', () => {
+    beforeEach(() => {
+      // Reset regex lastIndex to ensure consistent test results
+      redditThreadRegex.lastIndex = 0;
+    });
+
+    it('should match standard Reddit URLs', () => {
+      const text =
+        'Check out: https://reddit.com/r/programming/comments/abc123';
+      const matches = [...text.matchAll(redditThreadRegex)];
+      expect(matches).toHaveLength(1);
+      expect(matches[0][0]).toBe(
+        'https://reddit.com/r/programming/comments/abc123',
+      );
+    });
+
+    it('should match Reddit URLs with www prefix', () => {
+      const text =
+        'Check out: https://www.reddit.com/r/programming/comments/abc123';
+      const matches = [...text.matchAll(redditThreadRegex)];
+      expect(matches).toHaveLength(1);
+      expect(matches[0][0]).toBe(
+        'https://www.reddit.com/r/programming/comments/abc123',
+      );
+    });
+
+    it('should match Reddit URLs with additional path segments', () => {
+      const text =
+        'Check out: https://reddit.com/r/programming/comments/abc123/cool_post_title/';
+      const matches = [...text.matchAll(redditThreadRegex)];
+      expect(matches).toHaveLength(1);
+      expect(matches[0][0]).toBe(
+        'https://reddit.com/r/programming/comments/abc123/cool_post_title/',
+      );
+    });
+
+    it('should NOT include markdown link formatting', () => {
+      const testCases = [
+        '[Reddit post](https://reddit.com/r/programming/comments/abc123)',
+        '([Reddit link](https://reddit.com/r/programming/comments/abc123))',
+        'Check this out: [Cool post](https://reddit.com/r/programming/comments/abc123)',
+      ];
+
+      testCases.forEach((text) => {
+        redditThreadRegex.lastIndex = 0; // Reset regex
+        const matches = [...text.matchAll(redditThreadRegex)];
+        expect(matches).toHaveLength(1);
+        expect(matches[0][0]).toBe(
+          'https://reddit.com/r/programming/comments/abc123',
+        );
+      });
+    });
+
+    it('should handle multiple Reddit URLs in the same text', () => {
+      const text =
+        'First: https://reddit.com/r/programming/comments/111 and second: https://reddit.com/r/javascript/comments/222';
+      const matches = [...text.matchAll(redditThreadRegex)];
+      expect(matches).toHaveLength(2);
+      expect(matches[0][0]).toBe(
+        'https://reddit.com/r/programming/comments/111',
+      );
+      expect(matches[1][0]).toBe(
+        'https://reddit.com/r/javascript/comments/222',
+      );
+    });
+
+    it('should handle HTTP URLs (not just HTTPS)', () => {
+      const text = 'Check out: http://reddit.com/r/programming/comments/abc123';
+      const matches = [...text.matchAll(redditThreadRegex)];
+      expect(matches).toHaveLength(1);
+      expect(matches[0][0]).toBe(
+        'http://reddit.com/r/programming/comments/abc123',
+      );
     });
   });
 });

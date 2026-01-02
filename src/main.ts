@@ -85,18 +85,26 @@ async function bootstrap() {
   const npub = nip19.npubEncode(process.env.NOSTR_BOT_PUBLIC_KEY!);
 
   const serverSettings = `
+
 ### Server settings ###
-    Starting on port ${port}
-    Nostr public key: ${process.env.NOSTR_BOT_PUBLIC_KEY}
-    Link to Nostr public key: https://njump.me/${npub}
+
     Debug mode: ${process.env.IS_DEBUG_MODE === 'true'}
-    domain for NIP-05 verification: ${process.env.NIP05_VERIFICATION_DOMAIN_URL}
-    email for NIP-05 verification: ${process.env.NIP05_VERIFICATION_DOMAIN_EMAIL}
-    Cache TTL (minutes): ${process.env.CACHE_TTL_MINUTES}
-    Reconnection delay (seconds): ${process.env.RECONNECTION_DELAY_SECONDS}
-    Log retention days: ${logRetentionDays}
-    Log directory: ${logDirectory}
-#########`;
+    Node env mode: ${process.env.NODE_ENV}
+    Starting on port [${port}]
+    
+    Nostr public key: [${process.env.NOSTR_BOT_PUBLIC_KEY}]
+    Link to Nostr public key: [https://njump.me/${npub}]
+    Domain for NIP-05 verification: [${process.env.NIP05_VERIFICATION_DOMAIN_URL}]
+    Email for NIP-05 verification: [${process.env.NIP05_VERIFICATION_DOMAIN_EMAIL}]
+    
+    Cache TTL (minutes): [${process.env.CACHE_TTL_MINUTES}]
+    Reconnection delay (seconds): [${process.env.RECONNECTION_DELAY_SECONDS}]
+    
+    Log retention days: [${logRetentionDays}]
+    Log directory: [${logDirectory}]
+
+#########
+`;
   logger.log(serverSettings);
 
   await app.listen(port);

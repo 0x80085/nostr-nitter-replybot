@@ -34,6 +34,7 @@ export class NostrService implements OnModuleInit {
 
   private nostrRelays: string[];
   private RECONNECTION_DELAY_MS: number;
+  private ignoredNpubs: string[];
 
   private logger = new Logger(NostrService.name);
   private cache: Cache;
@@ -76,6 +77,23 @@ export class NostrService implements OnModuleInit {
       .split(',')
       .map((r) => r.trim())
       .filter((r) => r.length > 0);
+
+    // Initialize blocked npubs
+    const configBlockedNpubs = this.configService
+      .get<string>('IGNORED_AUTHORS', '')
+      .split(',')
+      .map((npub) => npub.trim())
+      .filter((npub) => npub.length > 0);
+
+    this.ignoredNpubs = [
+      this.publicKey, // Always block self
+      ...configBlockedNpubs,
+    ];
+
+    this.logger.log(`Blocked npubs: ${this.ignoredNpubs.length} total`);
+    if (this.isDebugMode) {
+      this.logger.debug(`Blocked npubs: ${this.ignoredNpubs.join(', ')}`);
+    }
 
     // Configuration values with defaults
     const cacheTtl =
@@ -148,6 +166,14 @@ export class NostrService implements OnModuleInit {
     this.rxNostr.use(this.rxReq).subscribe((packet) => {
       try {
         if (packet.event.kind === 1) {
+          // Check if author is blocked (including self)
+          if (this.isAuthorIgnored(packet.event.pubkey)) {
+            this.logger.debug(
+              `Skipping event ${packet.event.id} from blocked author: ${packet.event.pubkey}`,
+            );
+            return;
+          }
+
           const wasAlreadyRepliedTo = this.cache.hasBeenRepliedTo(
             packet.event.id,
           );
@@ -189,6 +215,10 @@ export class NostrService implements OnModuleInit {
       authors: [], // Empty array means listen to all authors
       kinds: [1], // Only listen to kind 1 (text notes)
     });
+  }
+
+  private isAuthorIgnored(pubkey: string): boolean {
+    return this.ignoredNpubs.includes(pubkey);
   }
 
   private handleReplacedUrlsFound(

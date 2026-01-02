@@ -1,6 +1,6 @@
 export const twitterStatusRegex =
   // eslint-disable-next-line no-useless-escape
-  /https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/(\w+)\/status(?:es)?\/(\d+)(?:[\/\w\-._~:?#[\]@!$&'()*+,;=]*)?/gi;
+  /https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\/(\w+)\/status(?:es)?\/(\d+)(?:[\/\w\-._~:?#@!$&'*+,;=]*)?/gi;
 
 export function cleanAndReplaceTwitterUrl(
   twitterUrl: string,
@@ -35,7 +35,8 @@ export function parseTwitterUrls(
 }
 
 export const redditThreadRegex =
-  /https?:\/\/(?:www\.)?reddit\.com\/r\/([\w_]+)\/comments\/([\w]+)(?:[^\s?]+)?/gi;
+  // eslint-disable-next-line no-useless-escape
+  /https?:\/\/(?:www\.)?reddit\.com\/r\/([\w_]+)\/comments\/([\w]+)(?:[\/\w\-._~:@!$&'*+,;=]*)?/gi;
 
 export function cleanAndReplaceRedditUrl(
   redditUrl: string,
