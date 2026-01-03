@@ -222,6 +222,22 @@ export class NostrService implements OnModuleInit {
     return this.ignoredNpubs.includes(pubkey);
   }
 
+  private getConnectedRelayUrl(): string {
+    const relayStatus = this.rxNostr.getAllRelayStatus();
+
+    // Find a relay that's connected
+    for (const [url, status] of Object.entries(relayStatus)) {
+      if (status && typeof status === 'object' && 'state' in status) {
+        if (status.state === 'connected' || status.state === 'connecting') {
+          return url;
+        }
+      }
+    }
+
+    // Fallback to first configured relay or empty string
+    return this.nostrRelays.length > 0 ? this.nostrRelays[0] : '';
+  }
+
   private handleReplacedUrlsFound(
     packet: EventPacket,
     twitterUrlMappings: Record<string, string[]>,
@@ -267,8 +283,9 @@ ${replyMessage}
 
   private replyToEvent(originalEvent: NostrEvent, message: string): void {
     const tags: string[][] = [];
+    const relayUrl = this.getConnectedRelayUrl();
 
-    // 1. Handle 'e' tags - find or create root
+    // 1. Handle 'e' tags according to NIP-10
     const originalETags =
       originalEvent.tags?.filter((tag) => tag[0] === 'e') || [];
 
@@ -276,22 +293,50 @@ ${replyMessage}
     const existingRootTag = originalETags.find((tag) => tag[3] === 'root');
 
     if (existingRootTag) {
-      // Keep existing root
-      const [, rootId, rootRelay] = existingRootTag;
-      tags.push(['e', rootId, rootRelay || '', 'root']);
+      // This is a nested reply - use existing root + mark original as reply
+      const [, rootId, rootRelay, , rootPubkey] = existingRootTag;
+      tags.push(['e', rootId, rootRelay || relayUrl, 'root', rootPubkey || '']);
+
+      // Add reply tag for the immediate parent
+      tags.push([
+        'e',
+        originalEvent.id,
+        relayUrl,
+        'reply',
+        originalEvent.pubkey,
+      ]);
     } else if (originalETags.length > 0) {
-      // Use first e tag as root (common convention when no root marker)
-      const [, firstEId, firstERelay] = originalETags[0];
-      tags.push(['e', firstEId, firstERelay || '', 'root']);
+      // Original event is a reply but no root marker - treat first e tag as root
+      const [, firstEId, firstERelay, , firstEPubkey] = originalETags[0];
+      tags.push([
+        'e',
+        firstEId,
+        firstERelay || relayUrl,
+        'root',
+        firstEPubkey || '',
+      ]);
+
+      // Add reply tag for the immediate parent
+      tags.push([
+        'e',
+        originalEvent.id,
+        relayUrl,
+        'reply',
+        originalEvent.pubkey,
+      ]);
     } else {
-      // Original event is itself a root
-      tags.push(['e', originalEvent.id, '', 'root']);
+      // This is a TOP-LEVEL reply to a root post
+      // NIP-10: "For top level replies, only the 'root' marker should be used"
+      tags.push([
+        'e',
+        originalEvent.id,
+        relayUrl,
+        'root',
+        originalEvent.pubkey,
+      ]);
     }
 
-    // 2. Mark original event as the immediate parent (reply)
-    tags.push(['e', originalEvent.id, '', 'reply']);
-
-    // 3. Collect mentioned authors ('p' tags)
+    // 2. Collect mentioned authors ('p' tags)
     const mentionedAuthors = new Set<string>();
 
     // Always include the author we're replying to
@@ -307,18 +352,18 @@ ${replyMessage}
       }
     }
 
-    // Remove bot's own pubkey
+    // Remove bot's own pubkey to avoid self-mention
     mentionedAuthors.delete(this.publicKey);
 
-    // Add all mentioned authors
+    // Add all mentioned authors as p tags
     for (const pubkey of mentionedAuthors) {
       tags.push(['p', pubkey]);
     }
 
-    // 4. Add client tag (optional but helpful)
+    // 3. Add client tag (optional but helpful for debugging)
     tags.push(['client', 'Nostr Link Replacer Bot']);
 
-    // 5. Create and send the event
+    // 4. Create and send the event
     try {
       this.rxNostr
         .send({
