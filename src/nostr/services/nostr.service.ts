@@ -17,6 +17,7 @@ import WebSocket from 'ws';
 import {
   buildReplyMessage,
   countReplacedLinks,
+  nowInUnixTime,
   parseRedditUrls,
   parseTwitterUrls,
 } from './util';
@@ -323,7 +324,7 @@ ${replyMessage}
         .send({
           kind: 1,
           content: message,
-          created_at: Math.floor(Date.now() / 1000),
+          created_at: nowInUnixTime(),
           tags: tags,
         })
         .pipe(
