@@ -1,6 +1,6 @@
 {
   "name": "nostr-reply-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Nostr bot swaps Twitter/X links in Nostr posts for privacy-respecting Nitter versions.",
   "author": "0x80085",
   "private": true,

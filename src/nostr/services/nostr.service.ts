@@ -17,6 +17,7 @@ import WebSocket from 'ws';
 import {
   buildReplyMessage,
   countReplacedLinks,
+  nowInUnixTime,
   parseRedditUrls,
   parseTwitterUrls,
 } from './util';
@@ -265,33 +266,83 @@ ${replyMessage}
   }
 
   private replyToEvent(originalEvent: NostrEvent, message: string): void {
-    const tags = [
-      ['e', originalEvent.id, '', 'reply'], // The event you're replying to
-      ['p', originalEvent.pubkey], // The author you're replying to
-      ['p', this.publicKey], // Your bot's pubkey
-    ];
+    const tags: string[][] = [];
 
+    // 1. Handle 'e' tags - find or create root
+    const originalETags =
+      originalEvent.tags?.filter((tag) => tag[0] === 'e') || [];
+
+    // Look for existing root tag
+    const existingRootTag = originalETags.find((tag) => tag[3] === 'root');
+
+    if (existingRootTag) {
+      // Keep existing root
+      const [, rootId, rootRelay] = existingRootTag;
+      tags.push(['e', rootId, rootRelay || '', 'root']);
+    } else if (originalETags.length > 0) {
+      // Use first e tag as root (common convention when no root marker)
+      const [, firstEId, firstERelay] = originalETags[0];
+      tags.push(['e', firstEId, firstERelay || '', 'root']);
+    } else {
+      // Original event is itself a root
+      tags.push(['e', originalEvent.id, '', 'root']);
+    }
+
+    // 2. Mark original event as the immediate parent (reply)
+    tags.push(['e', originalEvent.id, '', 'reply']);
+
+    // 3. Collect mentioned authors ('p' tags)
+    const mentionedAuthors = new Set<string>();
+
+    // Always include the author we're replying to
+    mentionedAuthors.add(originalEvent.pubkey);
+
+    // Include all authors from original event's p tags
+    const originalPTags =
+      originalEvent.tags?.filter((tag) => tag[0] === 'p') || [];
+    for (const pTag of originalPTags) {
+      if (pTag[1] && pTag[1].length === 64) {
+        // Basic pubkey validation
+        mentionedAuthors.add(pTag[1]);
+      }
+    }
+
+    // Remove bot's own pubkey
+    mentionedAuthors.delete(this.publicKey);
+
+    // Add all mentioned authors
+    for (const pubkey of mentionedAuthors) {
+      tags.push(['p', pubkey]);
+    }
+
+    // 4. Add client tag (optional but helpful)
+    tags.push(['client', 'Nostr Link Replacer Bot']);
+
+    // 5. Create and send the event
     try {
       this.rxNostr
         .send({
-          kind: 1, // Text note
+          kind: 1,
           content: message,
-          created_at: now(),
+          created_at: nowInUnixTime(),
           tags: tags,
         })
         .pipe(
           take(1),
           tap(() => {
-            // Cache event only after successful reply
             this.cache.cacheRepliedToEvent(originalEvent.id);
             if (!this.isDebugMode) {
               this.logger.log(`Posted reply to event ${originalEvent.id}`);
               this.logger.debug(`Reply content: ${message}`);
+              this.logger.debug(`Tags: ${JSON.stringify(tags)}`);
             }
           }),
-          catchError((e) => {
-            this.logger.warn(`Couldn't post reply`);
-            this.logger.warn(e);
+          catchError((error: unknown) => {
+            const errorMessage =
+              error instanceof Error ? error.message : 'Unknown error';
+            this.logger.warn(
+              `Couldn't post reply to ${originalEvent.id}: ${errorMessage}`,
+            );
             return of(null);
           }),
         )
