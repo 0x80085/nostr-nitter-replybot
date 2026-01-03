@@ -325,13 +325,20 @@ ${replyMessage}
         originalEvent.pubkey,
       ]);
     } else {
-      // This is a TOP-LEVEL reply to a root post
-      // NIP-10: "For top level replies, only the 'root' marker should be used"
+      // This is a direct reply to a root post - use BOTH root and reply markers
+      // (matching the working example pattern)
       tags.push([
         'e',
         originalEvent.id,
         relayUrl,
         'root',
+        originalEvent.pubkey,
+      ]);
+      tags.push([
+        'e',
+        originalEvent.id,
+        relayUrl,
+        'reply',
         originalEvent.pubkey,
       ]);
     }
