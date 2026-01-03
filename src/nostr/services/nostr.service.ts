@@ -283,83 +283,26 @@ ${replyMessage}
 
   private replyToEvent(originalEvent: NostrEvent, message: string): void {
     const tags: string[][] = [];
-    const relayUrl = this.getConnectedRelayUrl();
 
-    // 1. Handle 'e' tags according to NIP-10
-    const originalETags =
-      originalEvent.tags?.filter((tag) => tag[0] === 'e') || [];
+    // SIMPLIFIED APPROACH: Always use the working pattern
+    // Both root and reply tags point to the original event (like working example)
+    tags.push(['e', originalEvent.id, '', 'root', originalEvent.pubkey]);
+    tags.push(['e', originalEvent.id, '', 'reply', originalEvent.pubkey]);
 
-    // Look for existing root tag
-    const existingRootTag = originalETags.find((tag) => tag[3] === 'root');
-
-    if (existingRootTag) {
-      // This is a nested reply - use existing root + mark original as reply
-      const [, rootId, rootRelay, , rootPubkey] = existingRootTag;
-      tags.push(['e', rootId, rootRelay || relayUrl, 'root', rootPubkey || '']);
-
-      // Add reply tag for the immediate parent
-      tags.push([
-        'e',
-        originalEvent.id,
-        relayUrl,
-        'reply',
-        originalEvent.pubkey,
-      ]);
-    } else if (originalETags.length > 0) {
-      // Original event is a reply but no root marker - treat first e tag as root
-      const [, firstEId, firstERelay, , firstEPubkey] = originalETags[0];
-      tags.push([
-        'e',
-        firstEId,
-        firstERelay || relayUrl,
-        'root',
-        firstEPubkey || '',
-      ]);
-
-      // Add reply tag for the immediate parent
-      tags.push([
-        'e',
-        originalEvent.id,
-        relayUrl,
-        'reply',
-        originalEvent.pubkey,
-      ]);
-    } else {
-      // This is a direct reply to a root post - use BOTH root and reply markers
-      // (matching the working example pattern)
-      tags.push([
-        'e',
-        originalEvent.id,
-        relayUrl,
-        'root',
-        originalEvent.pubkey,
-      ]);
-      tags.push([
-        'e',
-        originalEvent.id,
-        relayUrl,
-        'reply',
-        originalEvent.pubkey,
-      ]);
-    }
-
-    // 2. Collect mentioned authors ('p' tags)
+    // Collect all mentioned authors
     const mentionedAuthors = new Set<string>();
-
-    // Always include the author we're replying to
     mentionedAuthors.add(originalEvent.pubkey);
 
-    // Include all authors from original event's p tags
+    // Add all authors from original event's p tags
     const originalPTags =
       originalEvent.tags?.filter((tag) => tag[0] === 'p') || [];
     for (const pTag of originalPTags) {
       if (pTag[1] && pTag[1].length === 64) {
-        // Basic pubkey validation
         mentionedAuthors.add(pTag[1]);
       }
     }
 
-    // Remove bot's own pubkey to avoid self-mention
+    // Remove bot's own pubkey
     mentionedAuthors.delete(this.publicKey);
 
     // Add all mentioned authors as p tags
@@ -367,10 +310,6 @@ ${replyMessage}
       tags.push(['p', pubkey]);
     }
 
-    // 3. Add client tag (optional but helpful for debugging)
-    tags.push(['client', 'Nostr Link Replacer Bot']);
-
-    // 4. Create and send the event
     try {
       this.rxNostr
         .send({
