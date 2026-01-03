@@ -283,7 +283,6 @@ ${replyMessage}
 
   private replyToEvent(originalEvent: NostrEvent, message: string): void {
     const tags: string[][] = [];
-    const relayUrl = this.getConnectedRelayUrl();
 
     // SIMPLIFIED APPROACH: Always use the working pattern
     // Both root and reply tags point to the original event (like working example)
