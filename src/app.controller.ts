@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AppTokenGuard } from './auth/guards/app-token.guard';
+import { StatsService } from './stats/stats.service';
 
 class PostMessageDto {
   @ApiProperty({
@@ -74,6 +75,7 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly nostrService: NostrService,
+    private readonly statsService: StatsService,
   ) {}
 
   @Get()
@@ -86,8 +88,10 @@ export class AppController {
     summary: 'Get Nostr relays status',
     description: 'Get Nostr relays status',
   })
+  @UseGuards(AppTokenGuard)
+  @ApiBearerAuth('app-token')
   getRelays() {
-    return this.nostrService.getRelaysStatus();
+    return this.nostrService.getRelaysStatusAsJson();
   }
 
   @Post('post')
@@ -151,5 +155,14 @@ export class AppController {
         return of(HttpStatus.INTERNAL_SERVER_ERROR);
       }),
     );
+  }
+
+  @Get('stats')
+  @ApiOperation({
+    summary: 'Get statistics dashboard',
+    description: 'Returns the HTML statistics dashboard page',
+  })
+  getStats() {
+    return this.statsService.generateStatsHTML();
   }
 }

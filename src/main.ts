@@ -1,11 +1,37 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { Logger } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { utilities, WinstonModule } from 'nest-winston';
 import { nip19 } from 'nostr-tools';
 import * as winston from 'winston';
 import 'winston-daily-rotate-file';
+
+function setupSwagger(app: INestApplication<any>) {
+  if (process.env.EXPOSE_SWAGGER_API === 'true') {
+    const config = new DocumentBuilder()
+      .setTitle('Nostr Social Media Link Replacer Bot')
+      .setDescription(
+        'Scans Nostr for posts with Twitter/X and Reddit links and replies with privacy-respecting alternative front-end links',
+      )
+      .setVersion('1.0')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'Token',
+          name: 'Authorization',
+          description: 'Enter your app token',
+          in: 'header',
+        },
+        'app-token',
+      )
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('swagger', app, document);
+  }
+}
 
 async function bootstrap() {
   const logRetentionDays = process.env.LOG_RETENTION_DAYS || '30d';
@@ -59,27 +85,7 @@ async function bootstrap() {
 
   const logger = new Logger('Main');
 
-  const config = new DocumentBuilder()
-    .setTitle('Nostr Social Media Link Replacer Bot')
-    .setDescription(
-      'Scans Nostr for posts with Twitter/X and Reddit links and replies with privacy-respecting alternative front-end links',
-    )
-    .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'Token',
-        name: 'Authorization',
-        description: 'Enter your app token',
-        in: 'header',
-      },
-      'app-token', // This is the name to refer to this security scheme
-    )
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger', app, document);
+  setupSwagger(app);
 
   const port = process.env.PORT || 3000;
   const npub = nip19.npubEncode(process.env.NOSTR_BOT_PUBLIC_KEY!);
@@ -88,8 +94,9 @@ async function bootstrap() {
 
 ### Server settings ###
 
-    Debug mode: ${process.env.IS_DEBUG_MODE === 'true'}
-    Node env mode: ${process.env.NODE_ENV}
+    Debug mode: [${process.env.IS_DEBUG_MODE === 'true'}]
+    Swagger API exposed: [${process.env.EXPOSE_SWAGGER_API === 'true'}]
+    Node env mode: [${process.env.NODE_ENV}]
     Starting on port [${port}]
     
     Nostr public key: [${process.env.NOSTR_BOT_PUBLIC_KEY}]

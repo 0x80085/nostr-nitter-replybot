@@ -103,8 +103,8 @@ RECONNECTION_DELAY_SECONDS=60
 # Nostr relay configuration
 NOSTR_RELAYS="wss://relay.damus.io,wss://nostr.mom,wss://relay.nostr.band"
 
-# Bot behavior settings
-IGNORED_AUTHORS="npub1c4vv0nrfh0dchujhs2mndw4u5653k393v20x4kme2txev9hhz0qw4cqk7"
+# Ignored Author's npub in HEX version
+IGNORED_AUTHORS="c558c7cc69bbda3c271782b736babc64acd2da258b14f356dbca966cb0b7b89e"
 
 # Server configuration
 PORT=3000
@@ -210,15 +210,22 @@ Coverage reports are generated in the `coverage/` directory.
 The bot exposes a REST API on port 3000 (configurable via `PORT` environment variable):
 
 - **GET /**: Health check endpoint
+- **GET /stats**: Statistics dashboard showing bot performance metrics
 - **Swagger Documentation**: Available at `http://localhost:3000/api` when running
 
-The API is protected by the `AUTH_APP_TOKEN` for security.
+The API is protected by the `AUTH_APP_TOKEN` for security (except for the stats dashboard which is publicly accessible).
 
 ## Monitoring and Logs
 
 - **Log Files**: Stored in the `logs/` directory
 - **Log Rotation**: Configured for daily rotation with retention period set by `LOG_RETENTION_DAYS`
 - **Debug Mode**: When `IS_DEBUG_MODE=true`, replies are logged instead of posted to Nostr
+- **Statistics Dashboard**: Monitoring dashboard available at `http://localhost:3000/stats` (refresh page for updated metrics) showing:
+  - Daily reply count
+  - Cache statistics (entries and memory usage)
+  - Relay connection status
+  - Bot configuration details
+  - Next cache cleanup time
 
 ## Verification
 
