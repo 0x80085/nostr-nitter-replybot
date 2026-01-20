@@ -32,6 +32,10 @@ export class Cache {
     return this.repliedEventsCache.has(eventId);
   }
 
+  getEntries(): Map<NostrEventId, Timestamp> {
+    return this.repliedEventsCache;
+  }
+
   private cleanupCache(): void {
     this.logger.log(`Cleaning up event cache...`);
     const now = Date.now();
