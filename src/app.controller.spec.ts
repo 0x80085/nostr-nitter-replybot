@@ -3,6 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigService } from '@nestjs/config';
 import { NostrService } from './nostr/services/nostr.service';
+import { StatsService } from './stats/stats.service';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -30,6 +31,12 @@ describe('AppController', () => {
             publishMessage: jest.fn(),
             getRelays: jest.fn(() => ['wss://relay.test.com']),
             updateNIP05Profile: jest.fn(),
+          },
+        },
+        {
+          provide: StatsService,
+          useValue: {
+            generateStatsHTML: jest.fn(() => '<html>Mock stats</html>'),
           },
         },
       ],
