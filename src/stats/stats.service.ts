@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NostrService } from '../nostr/services/nostr.service';
+import { NostrInteractorService } from '../nostr/services/nostr-interactor/nostr-interactor.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RelayStatus } from 'rx-nostr/dist/rx-nostr/interface';
@@ -33,7 +33,7 @@ export class StatsService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly nostrService: NostrService,
+    private readonly nostrService: NostrInteractorService,
   ) {
     this.isDebugMode =
       this.configService.get<string>('IS_DEBUG_MODE') === 'true';
