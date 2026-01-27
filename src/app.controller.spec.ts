@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigService } from '@nestjs/config';
-import { NostrService } from './nostr/services/nostr.service';
+import { NostrInteractorService } from './nostr/services/nostr-interactor/nostr-interactor.service';
 import { StatsService } from './stats/stats.service';
 
 describe('AppController', () => {
@@ -25,7 +25,7 @@ describe('AppController', () => {
           },
         },
         {
-          provide: NostrService,
+          provide: NostrInteractorService,
           useValue: {
             // Mock methods that might be used by AppController
             publishMessage: jest.fn(),

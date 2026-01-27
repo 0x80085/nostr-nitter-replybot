@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AppService } from './app.service';
-import { NostrService } from './nostr/services/nostr.service';
+import { NostrInteractorService } from './nostr/services/nostr-interactor/nostr-interactor.service';
 import { catchError, map, of, toArray } from 'rxjs';
 import {
   ApiOperation,
@@ -74,7 +74,7 @@ class UpdateNIP05Dto {
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly nostrService: NostrService,
+    private readonly nostrService: NostrInteractorService,
     private readonly statsService: StatsService,
   ) {}
 
