@@ -182,6 +182,11 @@
         <div class="api-section">
             <h2>Post Message to Nostr</h2>
             <form id="postMessageForm" onsubmit="event.preventDefault(); callPostMessage();">
+                <label for="message">Message</label>
+                <textarea id="message" required placeholder="Hello from my Nostr bot!"></textarea>
+                <button type="submit">POST /post</button>
+            </form>
+            <div class="result" id="postMessageResult"></div>
         </div>
         <div class="api-section">
             <h2>Verify NIP-05</h2>
