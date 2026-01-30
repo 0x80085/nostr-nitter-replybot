@@ -1,6 +1,6 @@
 {
   "name": "nostr-reply-bot",
-  "version": "1.1.1",
+  "version": "1.2.1",
   "description": "Nostr bot swaps Twitter/X/Reddit links in Nostr posts for privacy-respecting alternative front-end links.",
   "author": "0x80085",
   "private": true,

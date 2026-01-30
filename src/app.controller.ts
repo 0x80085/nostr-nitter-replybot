@@ -17,8 +17,9 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AppTokenGuard } from './auth/guards/app-token.guard';
-import { StatsService } from './stats/stats.service';
-
+import { StatsService } from './stats.service';
+import * as fs from 'fs';
+import * as path from 'path';
 class PostMessageDto {
   @ApiProperty({
     description: 'The message to post to Nostr',
@@ -72,6 +73,8 @@ class UpdateNIP05Dto {
 @ApiTags('Nostr')
 @Controller()
 export class AppController {
+  private clientTemplate: string | null = null;
+
   constructor(
     private readonly appService: AppService,
     private readonly nostrService: NostrInteractorService,
@@ -139,7 +142,6 @@ export class AppController {
     return this.nostrService.verifyNIP05(name, about, profileImageUrl).pipe(
       toArray(),
       map((pk) => {
-        console.log('####');
         console.log(pk);
 
         const res = pk.map((p) => ({
@@ -164,5 +166,30 @@ export class AppController {
   })
   getStats() {
     return this.statsService.generateStatsHTML();
+  }
+
+  @Get('client')
+  @ApiOperation({
+    summary: 'Get statistics dashboard',
+    description: 'Returns the HTML statistics dashboard page',
+  })
+  getClient() {
+    return this.loadClientTemplate();
+  }
+
+  private loadClientTemplate(): string {
+    if (this.clientTemplate) {
+      return this.clientTemplate;
+    }
+
+    try {
+      // Path resolves to dist/templates/stats.html when running from built code
+      const templatePath = path.join(__dirname, 'templates', 'api-client.html');
+      this.clientTemplate = fs.readFileSync(templatePath, 'utf8');
+      return this.clientTemplate;
+    } catch (error) {
+      console.error('Error reading client template:', error);
+      return '<html><body><h1>Error loading client page</h1></body></html>';
+    }
   }
 }
