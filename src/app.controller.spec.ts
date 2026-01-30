@@ -3,7 +3,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigService } from '@nestjs/config';
 import { NostrInteractorService } from './nostr/services/nostr-interactor/nostr-interactor.service';
-import { StatsService } from './stats/stats.service';
+import { StatsService } from './stats.service';
 
 describe('AppController', () => {
   let appController: AppController;

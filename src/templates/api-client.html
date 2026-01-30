@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Bot API Client</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #0B0E11;
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1a1d21;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            padding-bottom: 30px;
+        }
+
+        .header {
+            background: #1a1d21;
+            color: #fff;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+
+        .header .subtitle {
+            margin-top: 10px;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .api-section {
+            margin: 30px 40px 0 40px;
+            background: #2a2d31;
+            border-radius: 10px;
+            padding: 25px 30px 20px 30px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            margin-bottom: 30px;
+        }
+
+        .api-section h2 {
+            margin-top: 0;
+            color: #C9FD35;
+            font-size: 1.3em;
+            font-weight: 400;
+        }
+
+        .api-section form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .api-section label {
+            font-weight: 500;
+            color: #a0a3a7;
+            margin-bottom: 2px;
+        }
+
+        .api-section input,
+        .api-section textarea {
+            background: #23262a;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 1em;
+            resize: vertical;
+        }
+
+        .api-section textarea {
+            min-height: 60px;
+            max-height: 200px;
+        }
+
+        .api-section button {
+            background: #C9FD35;
+            color: #1a1d21;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 18px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+
+        .api-section button:hover {
+            background: #b0e82a;
+        }
+
+        .result {
+            background: #181b1f;
+            color: #C9FD35;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.98em;
+            white-space: pre-wrap;
+            word-break: break-all;
+            min-height: 24px;
+        }
+
+        .token-input {
+            margin: 0 40px 0 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #23262a;
+            border-radius: 8px;
+            padding: 10px 18px;
+            margin-bottom: 20px;
+        }
+
+        .token-input label {
+            color: #C9FD35;
+            font-weight: 600;
+            font-size: 1em;
+        }
+
+        .token-input input {
+            flex: 1;
+            background: #181b1f;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 1em;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #a0a3a7;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+
+            .container,
+            .api-section,
+            .token-input {
+                margin: 0 5px 0 5px;
+                padding: 10px;
+            }
+
+            .api-section {
+                padding: 15px 8px 10px 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Nostr Bot API Client</h1>
+            <div class="subtitle">Interact with your Nostr Bot backend</div>
+        </div>
+        <div class="token-input">
+            <label for="token">App Token:</label>
+            <input type="password" id="token" placeholder="Enter your app-token (required for most endpoints)">
+        </div>
+        <div class="api-section">
+            <h2>Post Message to Nostr</h2>
+            <form id="postMessageForm" onsubmit="event.preventDefault(); callPostMessage();">
+        </div>
+        <div class="api-section">
+            <h2>Verify NIP-05</h2>
+            <form id="nip05Form" onsubmit="event.preventDefault(); callNIP05();">
+                <label for="name">Name</label>
+                <input id="name" maxlength="100" required placeholder="Alice">
+                <label for="about">About</label>
+                <textarea id="about" maxlength="500" placeholder="Bitcoin enthusiast and developer"></textarea>
+                <label for="profileImageUrl">Profile Image URL</label>
+                <input id="profileImageUrl" type="url" placeholder="https://example.com/profile.jpg">
+                <button type="submit">POST /verify-NIP-05</button>
+            </form>
+            <div class="result" id="nip05Result"></div>
+        </div>
+        <div class="api-section">
+            <h2>Get Relays Status</h2>
+            <button onclick="callRelays()">GET /relays</button>
+            <div class="result" id="relaysResult"></div>
+        </div>
+        <div class="footer">
+            <p>Made with ❤️ for Nostr | <a href="/stats" style="color:#C9FD35;">View Stats Dashboard</a></p>
+        </div>
+    </div>
+    <script>
+        function getToken() {
+            return document.getElementById('token').value.trim();
+        }
+        function setResult(id, data, isHtml) {
+            const el = document.getElementById(id);
+            if (isHtml) {
+                el.innerHTML = data;
+            } else {
+                el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+            }
+        }
+        async function callRelays() {
+            setResult('relaysResult', 'Loading...');
+            try {
+                const res = await fetch('/relays', {
+                    headers: { 'Authorization': 'Bearer ' + getToken() }
+                });
+                const data = await res.json();
+                setResult('relaysResult', data);
+            } catch (e) {
+                setResult('relaysResult', e.message);
+            }
+        }
+        async function callPostMessage() {
+            setResult('postMessageResult', 'Loading...');
+            try {
+                const message = document.getElementById('message').value;
+                const res = await fetch('/post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({ message })
+                });
+                const data = await res.json();
+                setResult('postMessageResult', data);
+            } catch (e) {
+                setResult('postMessageResult', e.message);
+            }
+        }
+        async function callNIP05() {
+            setResult('nip05Result', 'Loading...');
+            try {
+                const name = document.getElementById('name').value;
+                const about = document.getElementById('about').value;
+                const profileImageUrl = document.getElementById('profileImageUrl').value;
+                const res = await fetch('/verify-NIP-05', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getToken()
+                    },
+                    body: JSON.stringify({ name, about, profileImageUrl })
+                });
+                const data = await res.json();
+                setResult('nip05Result', data);
+            } catch (e) {
+                setResult('nip05Result', e.message);
+            }
+        }
+    </script>
+</body>
+
+</html>

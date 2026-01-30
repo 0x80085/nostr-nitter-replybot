@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NostrInteractorService } from '../nostr/services/nostr-interactor/nostr-interactor.service';
+import { NostrInteractorService } from './nostr/services/nostr-interactor/nostr-interactor.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RelayStatus } from 'rx-nostr/dist/rx-nostr/interface';
@@ -53,13 +53,7 @@ export class StatsService {
 
     try {
       // Path resolves to dist/templates/stats.html when running from built code
-      const templatePath = path.join(
-        __dirname,
-        '..',
-        '..',
-        'templates',
-        'stats.html',
-      );
+      const templatePath = path.join(__dirname, 'templates', 'stats.html');
       this.statsTemplate = fs.readFileSync(templatePath, 'utf8');
       return this.statsTemplate;
     } catch (error) {
